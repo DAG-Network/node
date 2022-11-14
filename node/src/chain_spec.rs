@@ -1,6 +1,6 @@
 use node_dan_runtime::{
 	AccountId, AuraConfig, BalancesConfig, GenesisConfig, GrandpaConfig, Signature, SudoConfig,
-	SystemConfig, WASM_BINARY,
+	SystemConfig, WASM_BINARY, FoundersConfig
 };
 use sc_service::ChainType;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
@@ -152,5 +152,8 @@ fn testnet_genesis(
 			key: Some(root_key),
 		},
 		transaction_payment: Default::default(),
+		founders: FoundersConfig {
+			first_founder: Some(get_account_id_from_seed::<sr25519::Public>("Eve")),
+		},
 	}
 }

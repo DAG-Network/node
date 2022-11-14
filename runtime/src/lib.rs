@@ -22,6 +22,7 @@ use sp_std::prelude::*;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
+use traits::FoundersInterface;
 
 // A few exports that help ease life for downstream crates.
 pub use frame_support::{
@@ -266,12 +267,27 @@ parameter_types! {
 	pub const MaxAgreementsPerAccount: u32 = 1000;
 }
 
+pub struct FoundersToAgreements;
+
+impl FoundersInterface for FoundersToAgreements {
+	fn add_to_bucket(value: u128) {
+		pallet_founders::Pallet::<Runtime>::add_to_bucket(value)
+	}
+}
+
 /// Configure the pallet-agreements in pallets/agreements.
 impl pallet_agreements::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type MaxAgreementsPerAccount = MaxAgreementsPerAccount;
+	type FoundersInterface = FoundersToAgreements; 
 }
+
+impl pallet_founders::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+}
+
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
@@ -290,6 +306,7 @@ construct_runtime!(
 		Sudo: pallet_sudo,
 		// Include the custom logic from the pallet-agreements in the runtime.
 		Agreements: pallet_agreements,
+		Founders: pallet_founders
 	}
 );
 

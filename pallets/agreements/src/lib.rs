@@ -13,11 +13,12 @@ pub mod pallet {
 		traits::Currency,
 		sp_runtime::traits::Hash,
 		traits::tokens::WithdrawReasons,
-		traits::tokens::ExistenceRequirement
+		traits::tokens::ExistenceRequirement,
+		sp_runtime::SaturatedConversion
 	};
 	use frame_system::pallet_prelude::*;
 	use scale_info::TypeInfo;
-
+	use traits::FoundersInterface;
 	type AccountOf<T> = <T as frame_system::Config>::AccountId;
 	type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -56,6 +57,8 @@ pub mod pallet {
 		type Currency: Currency<Self::AccountId>;
 
 		type MaxAgreementsPerAccount: Get<u32>;
+
+		type FoundersInterface: FoundersInterface;
 	}
 
 	#[pallet::pallet]
@@ -85,6 +88,14 @@ pub mod pallet {
 		AgreementCreated(T::AccountId, T::Hash),
 		// parameters. [agreement_id]
 		AgreementCanceled(T::Hash),
+		// parameters. [agreement_id]
+		AgreementSigned(T::Hash),
+		// parameters. [agreement_id]
+		AgreementUnsigned(T::Hash),
+		// parameters. [agreement_id]
+		AgreementInReview(T::Hash),
+		// parameters. [agreement_id]
+		AgreementAccepted(T::Hash),
 	}
 
 	// Errors inform users that something went wrong.
@@ -109,12 +120,12 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 
-		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1, 3))]
+		#[pallet::weight((1_000 + T::DbWeight::get().reads_writes(1, 3), DispatchClass::Normal, Pays::No))]
 		#[frame_support::transactional]
 		pub fn create(origin: OriginFor<T>, hired: AccountOf<T>, value: BalanceOf<T>, info: T::Hash) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(sender != hired, <Error<T>>::EqualsAccountsNotAllowed);
-			ensure!(value > Self::u32_to_balance(0), <Error<T>>::ZeroValueNotAllowed);
+			ensure!(value > Self::u32_to_balance(10_000), <Error<T>>::ZeroValueNotAllowed);
 			// check for balance
 			ensure!(T::Currency::free_balance(&sender) > value, <Error<T>>::NotEnoughBalance);
 
@@ -177,6 +188,7 @@ pub mod pallet {
 
 			agreement.status = AgreementStatus::NotSigned;
 			<Agreements<T>>::insert(&agg_id, agreement);
+			Self::deposit_event(Event::AgreementUnsigned(agg_id));
 			Ok(())
 		}
 
@@ -191,6 +203,7 @@ pub mod pallet {
 
 			agreement.status = AgreementStatus::Signed;
 			<Agreements<T>>::insert(&agg_id, agreement);
+			Self::deposit_event(Event::AgreementSigned(agg_id));
 			Ok(())
 		}
 
@@ -205,6 +218,7 @@ pub mod pallet {
 
 			agreement.status = AgreementStatus::InReview;
 			<Agreements<T>>::insert(&agg_id, agreement);
+			Self::deposit_event(Event::AgreementInReview(agg_id));
 			Ok(())
 		}
 
@@ -219,18 +233,32 @@ pub mod pallet {
 			ensure!(agreement.status == AgreementStatus::InReview, <Error<T>>::AgreementNotInReview);
 
 			// charge fees here
-			T::Currency::deposit_creating(&agreement.contractor, agreement.value);
+			let value_in_128 = Self::balance_to_u128(agreement.value);
+			let fee = value_in_128 / 100;
+			let to_receive = value_in_128 - fee;
+
+			T::FoundersInterface::add_to_bucket(fee);
+			T::Currency::deposit_creating(&agreement.hired, Self::u128_to_balance(to_receive));
 
 			agreement.status = AgreementStatus::Complete;
 			<Agreements<T>>::insert(&agg_id, agreement);
+			Self::deposit_event(Event::AgreementAccepted(agg_id));
 			Ok(())
 		}
 
 	}
 
 	impl<T: Config> Pallet<T> {
+		pub fn u128_to_balance(input: u128) -> BalanceOf<T> {
+			input.saturated_into()
+		}
+
 		pub fn u32_to_balance(input: u32) -> BalanceOf<T> {
 			input.into()
+		}
+
+		pub fn balance_to_u128(input: BalanceOf<T>) -> u128 {
+			input.saturated_into()
 		}
 	}
 
