@@ -88,6 +88,14 @@ pub mod pallet {
 		AgreementCreated(T::AccountId, T::Hash),
 		// parameters. [agreement_id]
 		AgreementCanceled(T::Hash),
+		// parameters. [agreement_id]
+		AgreementSigned(T::Hash),
+		// parameters. [agreement_id]
+		AgreementUnsigned(T::Hash),
+		// parameters. [agreement_id]
+		AgreementInReview(T::Hash),
+		// parameters. [agreement_id]
+		AgreementAccepted(T::Hash),
 	}
 
 	// Errors inform users that something went wrong.
@@ -112,7 +120,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 
-		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1, 3))]
+		#[pallet::weight((1_000 + T::DbWeight::get().reads_writes(1, 3), DispatchClass::Normal, Pays::No))]
 		#[frame_support::transactional]
 		pub fn create(origin: OriginFor<T>, hired: AccountOf<T>, value: BalanceOf<T>, info: T::Hash) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -180,6 +188,7 @@ pub mod pallet {
 
 			agreement.status = AgreementStatus::NotSigned;
 			<Agreements<T>>::insert(&agg_id, agreement);
+			Self::deposit_event(Event::AgreementUnsigned(agg_id));
 			Ok(())
 		}
 
@@ -194,6 +203,7 @@ pub mod pallet {
 
 			agreement.status = AgreementStatus::Signed;
 			<Agreements<T>>::insert(&agg_id, agreement);
+			Self::deposit_event(Event::AgreementSigned(agg_id));
 			Ok(())
 		}
 
@@ -208,6 +218,7 @@ pub mod pallet {
 
 			agreement.status = AgreementStatus::InReview;
 			<Agreements<T>>::insert(&agg_id, agreement);
+			Self::deposit_event(Event::AgreementInReview(agg_id));
 			Ok(())
 		}
 
@@ -231,6 +242,7 @@ pub mod pallet {
 
 			agreement.status = AgreementStatus::Complete;
 			<Agreements<T>>::insert(&agg_id, agreement);
+			Self::deposit_event(Event::AgreementAccepted(agg_id));
 			Ok(())
 		}
 
